@@ -1,6 +1,6 @@
-# sunrise_map
+# Sunrise MApp
 
-A new Flutter project.
+Android 向け 日の出マップアプリ
 
 ## Getting Started
 
