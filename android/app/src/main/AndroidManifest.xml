@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.sunrise_map">
+    package="info.ohgita.app.sunrise_map">
     <application
-        android:label="sunrise_map"
+        android:label="Sunrise MApp"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

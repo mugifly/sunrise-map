@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:sunrise_map/sunrise_api_client.dart';
 import 'dart:developer' as dev;
 
@@ -55,6 +56,7 @@ class _MapPageState extends State<MapPage> {
 
   // 日の出情報
   late SunriseData _sunriseData;
+  String _sunriseText = '日の出:  --:--';
 
   @override
   void initState() {
@@ -96,20 +98,38 @@ class _MapPageState extends State<MapPage> {
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.gps_fixed),
+            tooltip: '現在地を表示',
+            onPressed: () {
+              _moveToCurrentPosition();
+            },
+          )
+        ],
       ),
-      body: GoogleMap(
-        onMapCreated: _onMapCreated,
-        initialCameraPosition: _kDefaultPosition,
-        myLocationEnabled: true,
-        myLocationButtonEnabled: false,
-        compassEnabled: true,
-        polylines: _polylines,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _moveToCurrentPosition,
-        tooltip: '現在地を表示',
-        child: const Icon(Icons.gps_fixed),
-      ),
+      body: Column(children: <Widget>[
+        SizedBox(
+          height: 50,
+          child: Container(
+              alignment: AlignmentDirectional.center,
+              padding: const EdgeInsets.all(10.0),
+              child: Text(
+                _sunriseText,
+                style: const TextStyle(fontSize: 17),
+              )),
+        ),
+        Expanded(
+          child: GoogleMap(
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: _kDefaultPosition,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            compassEnabled: true,
+            polylines: _polylines,
+          ),
+        )
+      ]),
     );
   }
 
@@ -133,34 +153,47 @@ class _MapPageState extends State<MapPage> {
     ));
 
     // 現在地の日の出情報を取得
-    if (currentPosition != null &&
-        currentPosition?.latitude != null &&
-        currentPosition?.longitude != null) {
-      final position =
-          LatLng(currentPosition!.latitude, currentPosition!.longitude);
-      final d = await _sunriseApiClient.getSunriseData(position);
-      if (d == null) {
-        dev.log('Could not get sunrise data',
-            name: 'Main/_moveToCurrentPosition');
-        return;
-      }
+    await _updateSunriseInfo();
+  }
 
-      // 日の出情報を更新
-      _sunriseData = d;
-      dev.log('Got sunrise data... $_sunriseData',
-          name: 'Main/_moveToCurrentPosition');
-
-      // 現在地から90度方向の緯度経度を取得
-      final LatLng latLng = await _getLatLngFromBearing(position, 90, 1000.0);
-
-      // 線を引く
-      setState(() {
-        _polylines.add(Polyline(
-            polylineId: const PolylineId('1'),
-            points: [position, latLng],
-            color: Colors.green));
-      });
+  _updateSunriseInfo() async {
+    if (currentPosition == null ||
+        currentPosition?.latitude == null ||
+        currentPosition?.longitude == null) {
+      return;
     }
+
+    // 日の出情報を取得
+    final position =
+        LatLng(currentPosition!.latitude, currentPosition!.longitude);
+    final data = await _sunriseApiClient.getSunriseData(position);
+    if (data == null) {
+      dev.log('Could not get sunrise data', name: 'Main/_updateSunriseInfo');
+      return;
+    }
+
+    // 日の出情報を更新
+    _sunriseData = data;
+    dev.log('Got sunrise data... $_sunriseData',
+        name: 'Main/_updateSunriseInfo');
+
+    // 日の出情報を表示
+    setState(() {
+      final sunriseTimeStr =
+          DateFormat('HH:mm').format(_sunriseData.sunrisedAt);
+      _sunriseText = '日の出:  $sunriseTimeStr';
+    });
+
+    // 現在地から90度方向の緯度経度を取得
+    final LatLng latLng = await _getLatLngFromBearing(position, 90, 1000.0);
+
+    // 線を引く
+    setState(() {
+      _polylines.add(Polyline(
+          polylineId: const PolylineId('1'),
+          points: [position, latLng],
+          color: Colors.green));
+    });
   }
 
   _getLatLngFromBearing(LatLng position, int angle, distanceKilometers) {
