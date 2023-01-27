@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:sunrise_map/sunrise_api_client.dart';
+import 'dart:developer' as dev;
 
 void main() {
   runApp(const MyApp());
@@ -71,6 +74,15 @@ class _MyHomePageState extends State<MyHomePage> {
     zoom: 14,
   );
 
+  // ポリライン
+  final Set<Polyline> _polylines = {};
+
+  // 日の出APIクライアント
+  final SunriseApiClient _sunriseApiClient = SunriseApiClient();
+
+  // 日の出情報
+  late SunriseData _sunriseData;
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +122,9 @@ class _MyHomePageState extends State<MyHomePage> {
         onMapCreated: _onMapCreated,
         initialCameraPosition: _kDefaultPosition,
         myLocationEnabled: true,
+        myLocationButtonEnabled: false,
+        compassEnabled: true,
+        polylines: _polylines,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _moveToCurrentPosition,
@@ -125,15 +140,59 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // 現在地へ移動
-  void _moveToCurrentPosition() {
+  void _moveToCurrentPosition() async {
     if (currentPosition == null) {
       return;
     }
+
+    // 現在地へ移動
     _mapController.animateCamera(CameraUpdate.newCameraPosition(
       CameraPosition(
         target: LatLng(currentPosition!.latitude, currentPosition!.longitude),
         zoom: 14,
       ),
     ));
+
+    // 現在地の日の出情報を取得
+    if (currentPosition != null &&
+        currentPosition?.latitude != null &&
+        currentPosition?.longitude != null) {
+      final position =
+          LatLng(currentPosition!.latitude, currentPosition!.longitude);
+      final d = await _sunriseApiClient.getSunriseData(position);
+      if (d == null) {
+        dev.log('Could not get sunrise data',
+            name: 'Main/_moveToCurrentPosition');
+        return;
+      }
+
+      // 日の出情報を更新
+      _sunriseData = d;
+      dev.log('Got sunrise data... $_sunriseData',
+          name: 'Main/_moveToCurrentPosition');
+
+      // 現在地から90度方向の緯度経度を取得
+      final LatLng latLng = await _getLatLngFromBearing(position, 90, 1000.0);
+
+      // 線を引く
+      setState(() {
+        _polylines.add(Polyline(
+            polylineId: const PolylineId('1'),
+            points: [position, latLng],
+            color: Colors.green));
+      });
+    }
+  }
+
+  _getLatLngFromBearing(LatLng position, int angle, distanceKilometers) {
+    const double radius = 6371;
+    final double lat1 = position.latitude * pi / 180;
+    final double lon1 = position.longitude * pi / 180;
+    final double lat2 = asin(sin(lat1) * cos(distanceKilometers / radius) +
+        cos(lat1) * sin(distanceKilometers / radius) * cos(angle));
+    final double lon2 = lon1 +
+        atan2(sin(angle) * sin(distanceKilometers / radius) * cos(lat1),
+            cos(distanceKilometers / radius) - sin(lat1) * sin(lat2));
+    return LatLng(lat2 * 180 / pi, lon2 * 180 / pi);
   }
 }
