@@ -71,7 +71,13 @@ class _MapPageState extends State<MapPage> {
     positionSubscription =
         Geolocator.getPositionStream(locationSettings: _locationSettings)
             .listen((Position position) {
+      final isFirst = currentPosition == null;
       currentPosition = position;
+
+      if (isFirst) {
+        // 自動的に現在地へ移動 (初回のみ)
+        _moveToCurrentPosition();
+      }
     });
   }
 
@@ -99,7 +105,7 @@ class _MapPageState extends State<MapPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _moveToCurrentPosition,
-        tooltip: 'Increment',
+        tooltip: '現在地を表示',
         child: const Icon(Icons.gps_fixed),
       ),
     );
