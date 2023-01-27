@@ -7,6 +7,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sunrise_map/sunrise_api_client.dart';
 import 'dart:developer' as dev;
 
+import 'sunrise_data.dart';
+
 class MapPage extends StatefulWidget {
   const MapPage({super.key, required this.title});
 

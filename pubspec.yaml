@@ -41,6 +41,8 @@ dependencies:
   xml: ^6.2.2
   http: ^0.13.5
   intl: ^0.18.0
+  sqflite: ^2.2.4+1
+  vector_math: ^2.1.4
 
 dev_dependencies:
   flutter_test:

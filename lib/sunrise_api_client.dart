@@ -4,46 +4,60 @@ import 'package:intl/intl.dart';
 import 'package:xml/xml.dart';
 import 'dart:developer';
 
-class SunriseData {
-  final DateTime sunrisedAt;
-  final double sunAzimuth;
+import 'sunrise_api_cache.dart';
+import 'sunrise_data.dart';
 
-  SunriseData(this.sunrisedAt, this.sunAzimuth);
+class SunPosition {
+  final double azimuth;
+  final double altitude;
 
-  @override
-  String toString() {
-    return 'SunriseData{sunrisedAt: $sunrisedAt, sunAzimuth: $sunAzimuth}';
-  }
+  SunPosition(this.azimuth, this.altitude);
 }
 
 class SunriseApiClient {
   final String _kApiBaseUrl = 'https://labs.bitmeister.jp/ohakon/api/';
+  final SunriseApiCache _cache = SunriseApiCache();
 
   Future<SunriseData?> getSunriseData(LatLng position) async {
-    final sunriseTime = await getSunriseTime(position);
+    final date = DateTime.now();
+
+    // キャッシュを確認
+    final cachedData = await _cache.findNearCache(position, 1.0);
+    if (cachedData != null) {
+      log('Found cache... $cachedData',
+          name: 'SunriseApiClient/getSunriseData');
+      return cachedData;
+    }
+
+    // 日の出時刻を取得
+    final sunriseTime = await getSunriseTime(position, date);
     if (sunriseTime == null) {
       return null;
     }
 
-    final sunAzimuth = await getSunPosition(position, sunriseTime);
-    if (sunAzimuth == null) {
+    // 日の出位置を取得
+    final sunPosition = await getSunPosition(position, sunriseTime);
+    if (sunPosition == null) {
       return null;
     }
 
-    return SunriseData(sunriseTime, sunAzimuth);
+    // キャッシュを保存
+    final data = SunriseData(
+        position, sunriseTime, sunPosition.azimuth, sunPosition.altitude);
+    await _cache.save(data);
+
+    // 完了
+    return data;
   }
 
-  Future<DateTime?> getSunriseTime(LatLng position) async {
-    // 日時を取得
-    final now = DateTime.now();
-
+  Future<DateTime?> getSunriseTime(LatLng position, DateTime date) async {
     // リクエストURLを生成
     final baseURl = Uri.parse(_kApiBaseUrl);
     final params = {
       'mode': 'sun_moon_rise_set',
-      'year': now.year.toString(),
-      'month': now.month.toString(),
-      'day': now.day.toString(),
+      'year': date.year.toString(),
+      'month': date.month.toString(),
+      'day': date.day.toString(),
       'lat': position.latitude.toString(),
       'lng': position.longitude.toString(),
     };
@@ -74,12 +88,12 @@ class SunriseApiClient {
     log('sunriseHm = $sunriseHm', name: 'SunriseApiClient/getSunriseTime');
 
     // 日の出時刻をDateTimeに変換
-    final sunriseTime = DateFormat('yyyy-M-d HH:mm')
-        .parse('${now.year}-${now.month}-${now.day} ${sunriseHm.first.text}');
+    final sunriseTime = DateFormat('yyyy-M-d HH:mm').parse(
+        '${date.year}-${date.month}-${date.day} ${sunriseHm.first.text}');
     return sunriseTime;
   }
 
-  Future<double?> getSunPosition(LatLng position, DateTime? time) async {
+  Future<SunPosition?> getSunPosition(LatLng position, DateTime? time) async {
     // 日時を取得
     final time_ = (time == null) ? DateTime.now() : time;
 
@@ -120,6 +134,7 @@ class SunriseApiClient {
     }
     log('sunAzimuth = $sunAzimuth', name: 'SunriseApiClient/getSunPosition');
 
-    return double.parse(sunAzimuth.first.text);
+    return SunPosition(double.parse(sunAzimuth.first.text),
+        double.parse(sunAltitude.first.text));
   }
 }
