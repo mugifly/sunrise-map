@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 void main() {
@@ -49,16 +52,43 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  // Google Maps を制御するためのコントローラ
+  late GoogleMapController _mapController;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  // 現在地
+  Position? currentPosition;
+  late StreamSubscription<Position> positionSubscription;
+
+  // 位置情報取得の設定
+  final LocationSettings _locationSettings = const LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10,
+  );
+
+  // 初期位置
+  final CameraPosition _kDefaultPosition = const CameraPosition(
+    target: LatLng(34.7024, 135.4959),
+    zoom: 14,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 位置情報取得のための権限を取得
+    Future(() async {
+      LocationPermission perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied) {
+        // 権限がない場合は、設定を開く
+        await Geolocator.openLocationSettings();
+      }
+    });
+
+    // 現在地取得の開始
+    positionSubscription =
+        Geolocator.getPositionStream(locationSettings: _locationSettings)
+            .listen((Position position) {
+      currentPosition = position;
     });
   }
 
@@ -78,22 +108,32 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: GoogleMap(
         onMapCreated: _onMapCreated,
-        initialCameraPosition: const CameraPosition(
-          target: LatLng(34.7024, 135.4959),
-          zoom: 14,
-        ),
+        initialCameraPosition: _kDefaultPosition,
+        myLocationEnabled: true,
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: _moveToCurrentPosition,
         tooltip: 'Increment',
         child: const Icon(Icons.gps_fixed),
       ),
     );
   }
 
+  // Google Maps が読み込まれたときに呼ばれるイベントハンドラ
   void _onMapCreated(GoogleMapController controller) async {
-    setState(() {
+    _mapController = controller;
+  }
+
+  // 現在地へ移動
+  void _moveToCurrentPosition() {
+    if (currentPosition == null) {
       return;
-    });
+    }
+    _mapController.animateCamera(CameraUpdate.newCameraPosition(
+      CameraPosition(
+        target: LatLng(currentPosition!.latitude, currentPosition!.longitude),
+        zoom: 14,
+      ),
+    ));
   }
 }
